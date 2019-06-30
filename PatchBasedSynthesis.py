@@ -200,7 +200,7 @@ def FillImage( imgTarget, imgSample, imgPx, samplePx ):
     imgTarget[imgPx[0]:imgPx[0]+patchSize, imgPx[1]:imgPx[1]+patchSize] = imgSample[samplePx[0]:samplePx[0]+patchSize, samplePx[1]:samplePx[1]+patchSize]
 
 
-def drawDumpImg(imgTarget, imgSample, bestMatchesList, sampleID, patchSize):
+def drawDumpImg(imgTarget, imgSample, GrowPatchLocation, bestMatchesList, bestMatch, patchSize, OverlapWidth, dumpID):
     targetH, targetW = imgTarget.shape[0:2]
     sampleH, sampleW = imgSample.shape[0:2]
 
@@ -208,21 +208,52 @@ def drawDumpImg(imgTarget, imgSample, bestMatchesList, sampleID, patchSize):
     for match in bestMatchesList:
         point1 = (match[1], match[0])
         point2 = (match[1]+patchSize, match[0]+patchSize)
-        cv2.rectangle(imgSampleClone, point1, point2, (0, 255, 0), 1, cv2.LINE_AA)
+        cv2.rectangle(imgSampleClone, point1, point2, (0, 255, 0), 1, cv2.LINE_8)
+    
+    if len(bestMatchesList)>0:
+        point1 = (bestMatch[1], bestMatch[0])
+        point2 = (point1[0]+patchSize, point1[1 ]+patchSize)
+        cv2.rectangle(imgSampleClone, point1, point2, (0, 0, 255), 2, cv2.LINE_8)
+
+        if GrowPatchLocation[1]>=patchSize:
+            point1 = (bestMatch[1]-OverlapWidth, bestMatch[0])
+            point2 = (bestMatch[1], bestMatch[0]+patchSize)
+            cv2.rectangle(imgSampleClone, point1, point2, (255, 255, 255), 2, cv2.LINE_8)
+
+        if GrowPatchLocation[0]>=patchSize:
+            point1 = (bestMatch[1], bestMatch[0]-OverlapWidth)
+            point2 = (point1[0]+patchSize, point1[1]+OverlapWidth)
+            cv2.rectangle(imgSampleClone, point1, point2, (255, 255, 255), 2, cv2.LINE_8)
+
+
+    imgTargetClone = imgTarget.copy()
+    point1 = (GrowPatchLocation[1], GrowPatchLocation[0])
+    point2 = (point1[0]+patchSize, point1[1 ]+patchSize)
+    cv2.rectangle(imgTargetClone, point1, point2, (0, 255, 255), 2, cv2.LINE_8)
+
+    if GrowPatchLocation[1]>=patchSize:
+        point1 = (point1[0]-OverlapWidth, point1[1])
+        point2 = (point1[0]+OverlapWidth, point1[1]+patchSize)
+        cv2.rectangle(imgTargetClone, point1, point2, (255, 255, 255), 2, cv2.LINE_8)
+    
+    if GrowPatchLocation[0]>=patchSize:
+        point1 = (GrowPatchLocation[1], GrowPatchLocation[0]-OverlapWidth)
+        point2 = (point1[0]+patchSize, point1[1]+OverlapWidth)
+        cv2.rectangle(imgTargetClone, point1, point2, (255, 255, 255), 2, cv2.LINE_8)
+
+
 
     dumpH = max(targetH, sampleH)
     dumpW = 2*max(targetW, sampleW)
 
-    if len(imgTarget.shape)==2:
+    if len(imgTargetClone.shape)==2:
         dumpImg = np.zeros((dumpH, dumpW), np.uint8)
     else:
         dumpImg = np.zeros((dumpH, dumpW, 3), np.uint8)
 
-    print("dumpImg.shape", dumpImg.shape)
-
     top = (dumpH - targetH)//2
     left= (dumpW//2 - targetW)//2
-    dumpImg[top:top+targetH, left:left+targetW]=imgTarget
+    dumpImg[top:top+targetH, left:left+targetW]=imgTargetClone
     top = (dumpH - sampleH)//2
     left=dumpW//2 + (dumpW//2-sampleW)//2
     print(top, left, sampleW)
@@ -230,7 +261,7 @@ def drawDumpImg(imgTarget, imgSample, bestMatchesList, sampleID, patchSize):
     print(dumpImg[top:top+sampleH, left:left+sampleW].shape)
     dumpImg[top:top+sampleH, left:left+sampleW]=imgSampleClone
 
-    cv2.imwrite("./dumpImg.jpg", dumpImg)
+    cv2.imwrite("./dumpImg%03d.jpg"%dumpID, dumpImg)
 
 def synthesis(imgSample, patchSize, OverlapWidth, InitialThresConstant):
     img_height = int((user_desired_img_height // patchSize)*patchSize+patchSize)
@@ -245,7 +276,7 @@ def synthesis(imgSample, patchSize, OverlapWidth, InitialThresConstant):
     img[0:patchSize,0:patchSize] = imgSample[randomPatchHeight:randomPatchHeight+patchSize, randomPatchWidth:randomPatchWidth+patchSize]
     #initializating next 
     GrowPatchLocation = (0,patchSize)
-    drawDumpImg(img, imgSample, list(), 0)
+    drawDumpImg(img, imgSample, (0,0), list(), 0, patchSize, OverlapWidth, 0)
 
     pixelsCompleted = 0
     TotalPatches = ( (img_height)/ patchSize )*((img_width)/ patchSize) - 1
@@ -263,6 +294,7 @@ def synthesis(imgSample, patchSize, OverlapWidth, InitialThresConstant):
                 progress = 1
                 #Make A random selection from best fit pxls
                 sampleMatch = List[ randint(0, len(List) - 1) ]
+                drawDumpImg(img, imgSample, GrowPatchLocation, List, sampleMatch, patchSize, OverlapWidth, pixelsCompleted+1)
                 FillImage( img, imgSample, GrowPatchLocation, sampleMatch )
                 #Quilt this with in curr location
                 QuiltPatches( img, imgSample, GrowPatchLocation, sampleMatch )

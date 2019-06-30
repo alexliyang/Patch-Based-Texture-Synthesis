@@ -41,6 +41,17 @@ def OverlapErrorVertical( imgPx, samplePx ):
             OverlapErr += (diff[0]**2 + diff[1]**2 + diff[2]**2)**0.5
     return OverlapErr
 
+def OverlapErrorVertical2(imgPx, samplePx):
+    iLeft,jLeft = imgPx
+    iRight,jRight = samplePx
+    roiLeft=img[iLeft:iLeft+PatchSize, jLeft:jLeft+OverlapWidth]
+    roiRight=img_sample[iRight:iRight+PatchSize, jRight:jRight+OverlapWidth]
+
+    diff = (roiLeft.astype(np.int) - roiRight.astype(np.int))**2
+    diff = np.sum(np.sqrt(np.sum(diff, -1)))
+
+    return diff
+
 def OverlapErrorHorizntl( leftPx, rightPx ):
     iLeft,jLeft = leftPx
     iRight,jRight = rightPx
@@ -54,13 +65,24 @@ def OverlapErrorHorizntl( leftPx, rightPx ):
             OverlapErr += (diff[0]**2 + diff[1]**2 + diff[2]**2)**0.5
     return OverlapErr
 
+def OverlapErrorHorizntl2( leftPx, rightPx ):
+    iLeft,jLeft = leftPx
+    iRight,jRight = rightPx
+    roiLeft=img[iLeft:iLeft+OverlapWidth, jLeft:jLeft+PatchSize]
+    roiRight=img_sample[iRight:iRight+OverlapWidth, jRight:jRight+PatchSize]
+
+    diff = (roiLeft.astype(np.int) - roiRight.astype(np.int))**2
+    diff = np.sum(np.sqrt(np.sum(diff, -1)))
+
+    return diff
+
 def GetBestPatches( px ):#Will get called in GrowImage
     PixelList = []
     #check for top layer
     if px[0] == 0:
         for i in range(sample_height - PatchSize):
             for j in range(OverlapWidth, sample_width - PatchSize ):
-                error = OverlapErrorVertical( (px[0], px[1] - OverlapWidth), (i, j - OverlapWidth)  )
+                error = OverlapErrorVertical2( (px[0], px[1] - OverlapWidth), (i, j - OverlapWidth)  )
                 if error  < ThresholdOverlapError:
                     PixelList.append((i,j))
                 elif error < ThresholdOverlapError/2:
@@ -69,7 +91,7 @@ def GetBestPatches( px ):#Will get called in GrowImage
     elif px[1] == 0:
         for i in range(OverlapWidth, sample_height - PatchSize ):
             for j in range(sample_width - PatchSize):
-                error = OverlapErrorHorizntl( (px[0] - OverlapWidth, px[1]), (i - OverlapWidth, j)  )
+                error = OverlapErrorHorizntl2( (px[0] - OverlapWidth, px[1]), (i - OverlapWidth, j)  )
                 if error  < ThresholdOverlapError:
                     PixelList.append((i,j))
                 elif error < ThresholdOverlapError/2:
@@ -78,8 +100,8 @@ def GetBestPatches( px ):#Will get called in GrowImage
     else:
         for i in range(OverlapWidth, sample_height - PatchSize):
             for j in range(OverlapWidth, sample_width - PatchSize):
-                error_Vertical   = OverlapErrorVertical( (px[0], px[1] - OverlapWidth), (i,j - OverlapWidth)  )
-                error_Horizntl   = OverlapErrorHorizntl( (px[0] - OverlapWidth, px[1]), (i - OverlapWidth,j) )
+                error_Vertical   = OverlapErrorVertical2( (px[0], px[1] - OverlapWidth), (i,j - OverlapWidth)  )
+                error_Horizntl   = OverlapErrorHorizntl2( (px[0] - OverlapWidth, px[1]), (i - OverlapWidth,j) )
                 if error_Vertical  < ThresholdOverlapError and error_Horizntl < ThresholdOverlapError:
                     PixelList.append((i,j))
                 elif error_Vertical < ThresholdOverlapError/2 and error_Horizntl < ThresholdOverlapError/2:
@@ -223,7 +245,7 @@ def FillImage( imgPx, samplePx ):
 
 pixelsCompleted = 0
 TotalPatches = ( (img_height - 1 )/ PatchSize )*((img_width)/ PatchSize) - 1
-sys.stdout.write("Progress : [%-20s] %d%% | PixelsCompleted: %d | ThresholdConstant: --.------" % ('='*(pixelsCompleted*20/TotalPatches), (100*pixelsCompleted)/TotalPatches, pixelsCompleted))
+sys.stdout.write("Progress : [%-20s] %d%% | PixelsCompleted: %d | ThresholdConstant: --.------" % ('='*(int)(pixelsCompleted*20/TotalPatches), (100*pixelsCompleted)/TotalPatches, pixelsCompleted))
 sys.stdout.flush()
 while GrowPatchLocation[0] + PatchSize < img_height:
     pixelsCompleted += 1
@@ -250,7 +272,7 @@ while GrowPatchLocation[0] + PatchSize < img_height:
             ThresholdConstant *= 1.1
     # print pixelsCompleted, ThresholdConstant
     sys.stdout.write('\r')
-    sys.stdout.write("Progress : [%-20s] %d%% | PixelsCompleted: %d | ThresholdConstant: %f" % ('='*(pixelsCompleted*20/TotalPatches), (100*pixelsCompleted)/TotalPatches, pixelsCompleted, ThresholdConstant))
+    sys.stdout.write("Progress : [%-20s] %d%% | PixelsCompleted: %d | ThresholdConstant: %f" % ('='*(int)(pixelsCompleted*20/TotalPatches), (100*pixelsCompleted)/TotalPatches, pixelsCompleted, ThresholdConstant))
     sys.stdout.flush()
     
 # Displaying Images

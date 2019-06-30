@@ -8,57 +8,59 @@ from random import randint
 #---------------------------------------------------------------------------------------#
 #|                      Best Fit Patch and related functions                           |#
 #---------------------------------------------------------------------------------------#
-def OverlapErrorVertical2(imgPx, samplePx):
+def OverlapErrorVertical2(imgTarget, imgSample, imgPx, samplePx):
     iLeft,jLeft = imgPx
     iRight,jRight = samplePx
-    roiLeft=img[iLeft:iLeft+PatchSize, jLeft:jLeft+OverlapWidth]
-    roiRight=img_sample[iRight:iRight+PatchSize, jRight:jRight+OverlapWidth]
+    roiLeft=imgTarget[iLeft:iLeft+PatchSize, jLeft:jLeft+OverlapWidth]
+    roiRight=imgSample[iRight:iRight+PatchSize, jRight:jRight+OverlapWidth]
 
     diff = (roiLeft.astype(np.int) - roiRight.astype(np.int))**2
     diff = np.sum(np.sqrt(np.sum(diff, -1)))
 
     return diff
 
-def OverlapErrorHorizntl2( leftPx, rightPx ):
+def OverlapErrorHorizntl2( imgTarget, imgSample, leftPx, rightPx ):
     iLeft,jLeft = leftPx
     iRight,jRight = rightPx
-    roiLeft=img[iLeft:iLeft+OverlapWidth, jLeft:jLeft+PatchSize]
-    roiRight=img_sample[iRight:iRight+OverlapWidth, jRight:jRight+PatchSize]
+    roiLeft=imgTarget[iLeft:iLeft+OverlapWidth, jLeft:jLeft+PatchSize]
+    roiRight=imgSample[iRight:iRight+OverlapWidth, jRight:jRight+PatchSize]
 
     diff = (roiLeft.astype(np.int) - roiRight.astype(np.int))**2
     diff = np.sum(np.sqrt(np.sum(diff, -1)))
 
     return diff
 
-def GetBestPatches( px ):#Will get called in GrowImage
+def GetBestPatches( px , imgTarget, imgSample, threshold):#Will get called in GrowImage
     PixelList = []
+    sample_height, sample_width = imgSample.shape[0:2]
+
     #check for top layer
     if px[0] == 0:
         for i in range(sample_height - PatchSize):
             for j in range(OverlapWidth, sample_width - PatchSize ):
-                error = OverlapErrorVertical2( (px[0], px[1] - OverlapWidth), (i, j - OverlapWidth)  )
-                if error  < ThresholdOverlapError:
+                error = OverlapErrorVertical2( imgTarget, imgSample, (px[0], px[1] - OverlapWidth), (i, j - OverlapWidth)  )
+                if error  < threshold:
                     PixelList.append((i,j))
-                elif error < ThresholdOverlapError/2:
+                elif error < threshold/2:
                     return [(i,j)]
     #check for leftmost layer
     elif px[1] == 0:
         for i in range(OverlapWidth, sample_height - PatchSize ):
             for j in range(sample_width - PatchSize):
-                error = OverlapErrorHorizntl2( (px[0] - OverlapWidth, px[1]), (i - OverlapWidth, j)  )
-                if error  < ThresholdOverlapError:
+                error = OverlapErrorHorizntl2( imgTarget, imgSample, (px[0] - OverlapWidth, px[1]), (i - OverlapWidth, j)  )
+                if error  < threshold:
                     PixelList.append((i,j))
-                elif error < ThresholdOverlapError/2:
+                elif error < threshold/2:
                     return [(i,j)]
     #for pixel placed inside 
     else:
         for i in range(OverlapWidth, sample_height - PatchSize):
             for j in range(OverlapWidth, sample_width - PatchSize):
-                error_Vertical   = OverlapErrorVertical2( (px[0], px[1] - OverlapWidth), (i,j - OverlapWidth)  )
-                error_Horizntl   = OverlapErrorHorizntl2( (px[0] - OverlapWidth, px[1]), (i - OverlapWidth,j) )
-                if error_Vertical  < ThresholdOverlapError and error_Horizntl < ThresholdOverlapError:
+                error_Vertical   = OverlapErrorVertical2( imgTarget, imgSample, (px[0], px[1] - OverlapWidth), (i,j - OverlapWidth)  )
+                error_Horizntl   = OverlapErrorHorizntl2( imgTarget, imgSample, (px[0] - OverlapWidth, px[1]), (i - OverlapWidth,j) )
+                if error_Vertical  < threshold and error_Horizntl < threshold:
                     PixelList.append((i,j))
-                elif error_Vertical < ThresholdOverlapError/2 and error_Horizntl < ThresholdOverlapError/2:
+                elif error_Vertical < threshold/2 and error_Horizntl < threshold/2:
                     return [(i,j)]
     return PixelList
 
@@ -66,9 +68,9 @@ def GetBestPatches( px ):#Will get called in GrowImage
 #|                              Quilting and related Functions                                 |#
 #-----------------------------------------------------------------------------------------------#
 
-def SSD_Error( offset, imgPx, samplePx ):
-    imgValue = img[imgPx[0]+offset[0], imgPx[1]+offset[1]]
-    sampleValue = img_sample[samplePx[0] + offset[0], samplePx[1] + offset[1]]
+def SSD_Error( imgTarget, imgSample, offset, imgPx, samplePx ):
+    imgValue = imgTarget[imgPx[0]+offset[0], imgPx[1]+offset[1]]
+    sampleValue = imgSample[samplePx[0] + offset[0], samplePx[1] + offset[1]]
     
     diff = imgValue.astype(int) - sampleValue.astype(int)
     diff = np.mean(diff**2)
@@ -78,33 +80,33 @@ def SSD_Error( offset, imgPx, samplePx ):
 #|                  Calculating Cost                           |#
 #---------------------------------------------------------------#
 
-def GetCostVertical(imgPx, samplePx):
+def GetCostVertical(imgTarget, imgSample, imgPx, samplePx):
     Cost = np.zeros((PatchSize, OverlapWidth))
     for j in range(OverlapWidth):
         for i in range(PatchSize):
             if i == PatchSize - 1:
-                Cost[i,j] = SSD_Error((i ,j - OverlapWidth), imgPx, samplePx)
+                Cost[i,j] = SSD_Error(imgTarget, imgSample, (i ,j - OverlapWidth), imgPx, samplePx)
             else:
                 if j == 0 :
-                    Cost[i,j] = SSD_Error((i , j - OverlapWidth), imgPx, samplePx) + min( SSD_Error((i + 1, j - OverlapWidth), imgPx, samplePx),SSD_Error((i + 1,j + 1 - OverlapWidth), imgPx, samplePx) )
+                    Cost[i,j] = SSD_Error(imgTarget, imgSample, (i , j - OverlapWidth), imgPx, samplePx) + min( SSD_Error(imgTarget, imgSample, (i + 1, j - OverlapWidth), imgPx, samplePx),SSD_Error(imgTarget, imgSample, (i + 1,j + 1 - OverlapWidth), imgPx, samplePx) )
                 elif j == OverlapWidth - 1:
-                    Cost[i,j] = SSD_Error((i, j - OverlapWidth), imgPx, samplePx) + min( SSD_Error((i + 1, j - OverlapWidth), imgPx, samplePx), SSD_Error((i + 1, j - 1 - OverlapWidth), imgPx, samplePx) )
+                    Cost[i,j] = SSD_Error(imgTarget, imgSample, (i, j - OverlapWidth), imgPx, samplePx) + min( SSD_Error(imgTarget, imgSample, (i + 1, j - OverlapWidth), imgPx, samplePx), SSD_Error(imgTarget, imgSample, (i + 1, j - 1 - OverlapWidth), imgPx, samplePx) )
                 else:
-                    Cost[i,j] = SSD_Error((i, j -OverlapWidth), imgPx, samplePx) + min(SSD_Error((i + 1, j - OverlapWidth), imgPx, samplePx),SSD_Error((i + 1, j + 1 - OverlapWidth), imgPx, samplePx),SSD_Error((i + 1, j - 1 - OverlapWidth), imgPx, samplePx))
+                    Cost[i,j] = SSD_Error(imgTarget, imgSample, (i, j -OverlapWidth), imgPx, samplePx) + min(SSD_Error(imgTarget, imgSample, (i + 1, j - OverlapWidth), imgPx, samplePx),SSD_Error(imgTarget, imgSample, (i + 1, j + 1 - OverlapWidth), imgPx, samplePx),SSD_Error(imgTarget, imgSample, (i + 1, j - 1 - OverlapWidth), imgPx, samplePx))
     return Cost
 
-def GetCostHorizntl(imgPx, samplePx):
+def GetCostHorizntl(imgTarget, imgSample, imgPx, samplePx):
     Cost = np.zeros((OverlapWidth, PatchSize))
     for i in range( OverlapWidth ):
         for j in range( PatchSize ):
             if j == PatchSize - 1:
-                Cost[i,j] = SSD_Error((i - OverlapWidth, j), imgPx, samplePx)
+                Cost[i,j] = SSD_Error(imgTarget, imgSample, (i - OverlapWidth, j), imgPx, samplePx)
             elif i == 0:
-                Cost[i,j] = SSD_Error((i - OverlapWidth, j), imgPx, samplePx) + min(SSD_Error((i - OverlapWidth, j + 1), imgPx, samplePx), SSD_Error((i + 1 - OverlapWidth, j + 1), imgPx, samplePx))
+                Cost[i,j] = SSD_Error(imgTarget, imgSample, (i - OverlapWidth, j), imgPx, samplePx) + min(SSD_Error(imgTarget, imgSample, (i - OverlapWidth, j + 1), imgPx, samplePx), SSD_Error(imgTarget, imgSample, (i + 1 - OverlapWidth, j + 1), imgPx, samplePx))
             elif i == OverlapWidth - 1:
-                Cost[i,j] = SSD_Error((i - OverlapWidth, j), imgPx, samplePx) + min(SSD_Error((i - OverlapWidth, j + 1), imgPx, samplePx), SSD_Error((i - 1 - OverlapWidth, j + 1), imgPx, samplePx))
+                Cost[i,j] = SSD_Error(imgTarget, imgSample, (i - OverlapWidth, j), imgPx, samplePx) + min(SSD_Error(imgTarget, imgSample, (i - OverlapWidth, j + 1), imgPx, samplePx), SSD_Error(imgTarget, imgSample, (i - 1 - OverlapWidth, j + 1), imgPx, samplePx))
             else:
-                Cost[i,j] = SSD_Error((i - OverlapWidth, j), imgPx, samplePx) + min(SSD_Error((i - OverlapWidth, j + 1), imgPx, samplePx), SSD_Error((i + 1 - OverlapWidth, j + 1), imgPx, samplePx), SSD_Error((i - 1 - OverlapWidth, j + 1), imgPx, samplePx))
+                Cost[i,j] = SSD_Error(imgTarget, imgSample, (i - OverlapWidth, j), imgPx, samplePx) + min(SSD_Error(imgTarget, imgSample, (i - OverlapWidth, j + 1), imgPx, samplePx), SSD_Error(imgTarget, imgSample, (i + 1 - OverlapWidth, j + 1), imgPx, samplePx), SSD_Error(imgTarget, imgSample, (i - 1 - OverlapWidth, j + 1), imgPx, samplePx))
     return Cost
 
 #---------------------------------------------------------------#
@@ -157,104 +159,110 @@ def FindMinCostPathHorizntl(Cost):
 #|                      Quilting                               |#
 #---------------------------------------------------------------#
 
-def QuiltVertical(Boundary, imgPx, samplePx):
+def QuiltVertical(Boundary, imgTarget, imgSample, imgPx, samplePx):
     for i in range(PatchSize):
         for j in range(Boundary[i], 0, -1):
-            img[imgPx[0] + i, imgPx[1] - j] = img_sample[ samplePx[0] + i, samplePx[1] - j ]
-def QuiltHorizntl(Boundary, imgPx, samplePx):
+            imgTarget[imgPx[0] + i, imgPx[1] - j] = imgSample[ samplePx[0] + i, samplePx[1] - j ]
+def QuiltHorizntl(Boundary, imgTarget, imgSample, imgPx, samplePx):
     for j in range(PatchSize):
         for i in range(Boundary[j], 0, -1):
-            img[imgPx[0] - i, imgPx[1] + j] = img_sample[samplePx[0] - i, samplePx[1] + j]
+            imgTarget[imgPx[0] - i, imgPx[1] + j] = imgSample[samplePx[0] - i, samplePx[1] + j]
 
-def QuiltPatches( imgPx, samplePx ):
+def QuiltPatches( imgTarget, imgSample, imgPx, samplePx ):
     #check for top layer
     if imgPx[0] == 0:
-        Cost = GetCostVertical(imgPx, samplePx)
+        Cost = GetCostVertical(imgTarget, imgSample, imgPx, samplePx)
         # Getting boundary to stitch
         Boundary = FindMinCostPathVertical(Cost)
         #Quilting Patches
-        QuiltVertical(Boundary, imgPx, samplePx)
+        QuiltVertical(Boundary, imgTarget, imgSample, imgPx, samplePx)
     #check for leftmost layer
     elif imgPx[1] == 0:
-        Cost = GetCostHorizntl(imgPx, samplePx)
+        Cost = GetCostHorizntl(imgTarget, imgSample, imgPx, samplePx)
         #Boundary to stitch
         Boundary = FindMinCostPathHorizntl(Cost)
         #Quilting Patches
-        QuiltHorizntl(Boundary, imgPx, samplePx)
+        QuiltHorizntl(Boundary, imgTarget, imgSample, imgPx, samplePx)
     #for pixel placed inside 
     else:
-        CostVertical = GetCostVertical(imgPx, samplePx)
-        CostHorizntl = GetCostHorizntl(imgPx, samplePx)
+        CostVertical = GetCostVertical(imgTarget, imgSample, imgPx, samplePx)
+        CostHorizntl = GetCostHorizntl(imgTarget, imgSample, imgPx, samplePx)
         BoundaryVertical = FindMinCostPathVertical(CostVertical)
         BoundaryHorizntl = FindMinCostPathHorizntl(CostHorizntl)
-        QuiltVertical(BoundaryVertical, imgPx, samplePx)
-        QuiltHorizntl(BoundaryHorizntl, imgPx, samplePx)
+        QuiltVertical(BoundaryVertical, imgTarget, imgSample, imgPx, samplePx)
+        QuiltHorizntl(BoundaryHorizntl, imgTarget, imgSample, imgPx, samplePx)
 
 #--------------------------------------------------------------------------------------------------------#
 #                                   Growing Image Patch-by-patch                                        |#
 #--------------------------------------------------------------------------------------------------------#
 
-def FillImage( imgPx, samplePx ):
-    img[imgPx[0]:imgPx[0]+PatchSize, imgPx[1]:imgPx[1]+PatchSize] = img_sample[samplePx[0]:samplePx[0]+PatchSize, samplePx[1]:samplePx[1]+PatchSize]
+def FillImage( imgTarget, imgSample, imgPx, samplePx ):
+    imgTarget[imgPx[0]:imgPx[0]+PatchSize, imgPx[1]:imgPx[1]+PatchSize] = imgSample[samplePx[0]:samplePx[0]+PatchSize, samplePx[1]:samplePx[1]+PatchSize]
 
+
+def synthesis(imgSample, PatchSize, OverlapWidth, InitialThresConstant):
+    img_height = int((user_desired_img_height // PatchSize)*PatchSize+PatchSize)
+    img_width = int((user_desired_img_width // PatchSize)*PatchSize+PatchSize)
+    sample_width = imgSample.shape[1]
+    sample_height = imgSample.shape[0]
+    img = np.zeros((img_height,img_width,3), np.uint8)
+
+    #Picking random patch to begin
+    randomPatchHeight = randint(0, sample_height - PatchSize)
+    randomPatchWidth = randint(0, sample_width - PatchSize)
+    img[0:PatchSize,0:PatchSize] = imgSample[randomPatchHeight:randomPatchHeight+PatchSize, randomPatchWidth:randomPatchWidth+PatchSize]
+    #initializating next 
+    GrowPatchLocation = (0,PatchSize)
+
+    pixelsCompleted = 0
+    TotalPatches = ( (img_height)/ PatchSize )*((img_width)/ PatchSize) - 1
+    sys.stdout.write("Progress : [%-20s] %d%% | PixelsCompleted: %d | ThresholdConstant: --.------" % ('='*(int)(pixelsCompleted*20/TotalPatches), (100*pixelsCompleted)/TotalPatches, pixelsCompleted))
+    sys.stdout.flush()
+    while pixelsCompleted<TotalPatches:
+        ThresholdConstant = InitialThresConstant
+        #set progress to zer0
+        progress = 0 
+        while progress == 0:
+            ThresholdOverlapError = ThresholdConstant * PatchSize * OverlapWidth
+            #Get Best matches for current pixel
+            List = GetBestPatches(GrowPatchLocation, img, imgSample, ThresholdOverlapError)
+            if len(List) > 0:
+                progress = 1
+                #Make A random selection from best fit pxls
+                sampleMatch = List[ randint(0, len(List) - 1) ]
+                FillImage( img, imgSample, GrowPatchLocation, sampleMatch )
+                #Quilt this with in curr location
+                QuiltPatches( img, imgSample, GrowPatchLocation, sampleMatch )
+                #upadate cur pixel location
+                GrowPatchLocation = (GrowPatchLocation[0], GrowPatchLocation[1] + PatchSize)
+                if GrowPatchLocation[1] + PatchSize > img_width:
+                    GrowPatchLocation = (GrowPatchLocation[0] + PatchSize, 0)
+            #if not progressed, increse threshold
+            else:
+                ThresholdConstant *= 1.1
+        pixelsCompleted += 1
+        # print pixelsCompleted, ThresholdConstant
+        sys.stdout.write('\r')
+        sys.stdout.write("Progress : [%-20s] %d%% | PixelsCompleted: %d | ThresholdConstant: %f" % ('='*(int)(pixelsCompleted*20/TotalPatches), (100*pixelsCompleted)/TotalPatches, pixelsCompleted, ThresholdConstant))
+        sys.stdout.flush()
+
+    img=img[0:user_desired_img_height,0:user_desired_img_width]
+    return img
+    
 #Image Loading and initializations
 InputName = str(sys.argv[1])
 PatchSize = int(sys.argv[2])
 OverlapWidth = int(sys.argv[3])
 InitialThresConstant = float(sys.argv[4])
 
-img_sample = cv2.imread(InputName)
+imgSample = cv2.imread(InputName)
 user_desired_img_height = 250
 user_desired_img_width = 250
-img_height = int((user_desired_img_height // PatchSize)*PatchSize+PatchSize)
-img_width = int((user_desired_img_width // PatchSize)*PatchSize+PatchSize)
-sample_width = img_sample.shape[1]
-sample_height = img_sample.shape[0]
-img = np.zeros((img_height,img_width,3), np.uint8)
 
-#Picking random patch to begin
-randomPatchHeight = randint(0, sample_height - PatchSize)
-randomPatchWidth = randint(0, sample_width - PatchSize)
-img[0:PatchSize,0:PatchSize] = img_sample[randomPatchHeight:randomPatchHeight+PatchSize, randomPatchWidth:randomPatchWidth+PatchSize]
-#initializating next 
-GrowPatchLocation = (0,PatchSize)
+img = synthesis(imgSample, PatchSize, OverlapWidth, InitialThresConstant)
 
-pixelsCompleted = 0
-TotalPatches = ( (img_height)/ PatchSize )*((img_width)/ PatchSize) - 1
-sys.stdout.write("Progress : [%-20s] %d%% | PixelsCompleted: %d | ThresholdConstant: --.------" % ('='*(int)(pixelsCompleted*20/TotalPatches), (100*pixelsCompleted)/TotalPatches, pixelsCompleted))
-sys.stdout.flush()
-while pixelsCompleted<TotalPatches:
-    ThresholdConstant = InitialThresConstant
-    #set progress to zer0
-    progress = 0 
-    while progress == 0:
-        ThresholdOverlapError = ThresholdConstant * PatchSize * OverlapWidth
-        #Get Best matches for current pixel
-        List = GetBestPatches(GrowPatchLocation)
-        if len(List) > 0:
-            progress = 1
-            #Make A random selection from best fit pxls
-            sampleMatch = List[ randint(0, len(List) - 1) ]
-            FillImage( GrowPatchLocation, sampleMatch )
-            #Quilt this with in curr location
-            QuiltPatches( GrowPatchLocation, sampleMatch )
-            #upadate cur pixel location
-            GrowPatchLocation = (GrowPatchLocation[0], GrowPatchLocation[1] + PatchSize)
-            if GrowPatchLocation[1] + PatchSize > img_width:
-                GrowPatchLocation = (GrowPatchLocation[0] + PatchSize, 0)
-        #if not progressed, increse threshold
-        else:
-            ThresholdConstant *= 1.1
-    pixelsCompleted += 1
-    # print pixelsCompleted, ThresholdConstant
-    sys.stdout.write('\r')
-    sys.stdout.write("Progress : [%-20s] %d%% | PixelsCompleted: %d | ThresholdConstant: %f" % ('='*(int)(pixelsCompleted*20/TotalPatches), (100*pixelsCompleted)/TotalPatches, pixelsCompleted, ThresholdConstant))
-    sys.stdout.flush()
-
-img=img[0:user_desired_img_height,0:user_desired_img_width]
-    
 # Displaying Images
-cv2.imshow('Sample Texture',img_sample)
+cv2.imshow('Sample Texture',imgSample)
 cv2.waitKey(0)
 cv2.destroyAllWindows()
 cv2.imshow('Generated Image',img)

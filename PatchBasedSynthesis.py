@@ -201,7 +201,11 @@ def FillImage( imgTarget, imgSample, imgPx, samplePx ):
     imgTarget[imgPx[0]:imgPx[0]+patchSize, imgPx[1]:imgPx[1]+patchSize] = imgSample[samplePx[0]:samplePx[0]+patchSize, samplePx[1]:samplePx[1]+patchSize]
 
 
+NEED_DUMP = True
 def drawDumpImg(imgTarget, imgSample, GrowPatchLocation, bestMatchesList, bestMatch, patchSize, OverlapWidth, dumpID):
+    if NEED_DUMP==False:
+        return
+
     targetH, targetW = imgTarget.shape[0:2]
     sampleH, sampleW = imgSample.shape[0:2]
 

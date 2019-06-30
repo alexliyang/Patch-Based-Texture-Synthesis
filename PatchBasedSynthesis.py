@@ -5,42 +5,9 @@ import sys
 import numpy as np
 from random import randint
 
-#Image Loading and initializations
-InputName = str(sys.argv[1])
-img_sample = cv2.imread(InputName)
-img_height = 250
-img_width  = 200
-sample_width = img_sample.shape[1]
-sample_height = img_sample.shape[0]
-img = np.zeros((img_height,img_width,3), np.uint8)
-PatchSize = int(sys.argv[2])
-OverlapWidth = int(sys.argv[3])
-InitialThresConstant = float(sys.argv[4])
-
-#Picking random patch to begin
-randomPatchHeight = randint(0, sample_height - PatchSize)
-randomPatchWidth = randint(0, sample_width - PatchSize)
-for i in range(PatchSize):
-    for j in range(PatchSize):
-        img[i, j] = img_sample[randomPatchHeight + i, randomPatchWidth + j]
-#initializating next 
-GrowPatchLocation = (0,PatchSize)
 #---------------------------------------------------------------------------------------#
 #|                      Best Fit Patch and related functions                           |#
 #---------------------------------------------------------------------------------------#
-def OverlapErrorVertical( imgPx, samplePx ):
-    iLeft,jLeft = imgPx
-    iRight,jRight = samplePx
-    OverlapErr = 0
-    diff = np.zeros((3))
-    for i in range( PatchSize ):
-        for j in range( OverlapWidth ):
-            diff[0] =  int(img[i + iLeft, j+ jLeft][0]) - int(img_sample[i + iRight, j + jRight][0])
-            diff[1] =  int(img[i + iLeft, j+ jLeft][1]) - int(img_sample[i + iRight, j + jRight][1])
-            diff[2] =  int(img[i + iLeft, j+ jLeft][2]) - int(img_sample[i + iRight, j + jRight][2])
-            OverlapErr += (diff[0]**2 + diff[1]**2 + diff[2]**2)**0.5
-    return OverlapErr
-
 def OverlapErrorVertical2(imgPx, samplePx):
     iLeft,jLeft = imgPx
     iRight,jRight = samplePx
@@ -51,19 +18,6 @@ def OverlapErrorVertical2(imgPx, samplePx):
     diff = np.sum(np.sqrt(np.sum(diff, -1)))
 
     return diff
-
-def OverlapErrorHorizntl( leftPx, rightPx ):
-    iLeft,jLeft = leftPx
-    iRight,jRight = rightPx
-    OverlapErr = 0
-    diff = np.zeros((3))
-    for i in range( OverlapWidth ):
-        for j in range( PatchSize ):
-            diff[0] =  int(img[i + iLeft, j+ jLeft][0]) - int(img_sample[i + iRight, j + jRight][0])
-            diff[1] =  int(img[i + iLeft, j+ jLeft][1]) - int(img_sample[i + iRight, j + jRight][1])
-            diff[2] =  int(img[i + iLeft, j+ jLeft][2]) - int(img_sample[i + iRight, j + jRight][2])
-            OverlapErr += (diff[0]**2 + diff[1]**2 + diff[2]**2)**0.5
-    return OverlapErr
 
 def OverlapErrorHorizntl2( leftPx, rightPx ):
     iLeft,jLeft = leftPx
@@ -113,10 +67,12 @@ def GetBestPatches( px ):#Will get called in GrowImage
 #-----------------------------------------------------------------------------------------------#
 
 def SSD_Error( offset, imgPx, samplePx ):
-    err_r = int(img[imgPx[0] + offset[0], imgPx[1] + offset[1]][0]) -int(img_sample[samplePx[0] + offset[0], samplePx[1] + offset[1]][0])
-    err_g = int(img[imgPx[0] + offset[0], imgPx[1] + offset[1]][1]) - int(img_sample[samplePx[0] + offset[0], samplePx[1] + offset[1]][1])
-    err_b = int(img[imgPx[0] + offset[0], imgPx[1] + offset[1]][2]) - int(img_sample[samplePx[0] + offset[0], samplePx[1] + offset[1]][2])
-    return (err_r**2 + err_g**2 + err_b**2)/3.0
+    imgValue = img[imgPx[0]+offset[0], imgPx[1]+offset[1]]
+    sampleValue = img_sample[samplePx[0] + offset[0], samplePx[1] + offset[1]]
+    
+    diff = imgValue.astype(int) - sampleValue.astype(int)
+    diff = np.mean(diff**2)
+    return diff
 
 #---------------------------------------------------------------#
 #|                  Calculating Cost                           |#
@@ -239,16 +195,35 @@ def QuiltPatches( imgPx, samplePx ):
 #--------------------------------------------------------------------------------------------------------#
 
 def FillImage( imgPx, samplePx ):
-    for i in range(PatchSize):
-        for j in range(PatchSize):
-            img[ imgPx[0] + i, imgPx[1] + j ] = img_sample[ samplePx[0] + i, samplePx[1] + j ]
+    img[imgPx[0]:imgPx[0]+PatchSize, imgPx[1]:imgPx[1]+PatchSize] = img_sample[samplePx[0]:samplePx[0]+PatchSize, samplePx[1]:samplePx[1]+PatchSize]
+
+#Image Loading and initializations
+InputName = str(sys.argv[1])
+PatchSize = int(sys.argv[2])
+OverlapWidth = int(sys.argv[3])
+InitialThresConstant = float(sys.argv[4])
+
+img_sample = cv2.imread(InputName)
+user_desired_img_height = 250
+user_desired_img_width = 250
+img_height = int((user_desired_img_height // PatchSize)*PatchSize+PatchSize)
+img_width = int((user_desired_img_width // PatchSize)*PatchSize+PatchSize)
+sample_width = img_sample.shape[1]
+sample_height = img_sample.shape[0]
+img = np.zeros((img_height,img_width,3), np.uint8)
+
+#Picking random patch to begin
+randomPatchHeight = randint(0, sample_height - PatchSize)
+randomPatchWidth = randint(0, sample_width - PatchSize)
+img[0:PatchSize,0:PatchSize] = img_sample[randomPatchHeight:randomPatchHeight+PatchSize, randomPatchWidth:randomPatchWidth+PatchSize]
+#initializating next 
+GrowPatchLocation = (0,PatchSize)
 
 pixelsCompleted = 0
-TotalPatches = ( (img_height - 1 )/ PatchSize )*((img_width)/ PatchSize) - 1
+TotalPatches = ( (img_height)/ PatchSize )*((img_width)/ PatchSize) - 1
 sys.stdout.write("Progress : [%-20s] %d%% | PixelsCompleted: %d | ThresholdConstant: --.------" % ('='*(int)(pixelsCompleted*20/TotalPatches), (100*pixelsCompleted)/TotalPatches, pixelsCompleted))
 sys.stdout.flush()
-while GrowPatchLocation[0] + PatchSize < img_height:
-    pixelsCompleted += 1
+while pixelsCompleted<TotalPatches:
     ThresholdConstant = InitialThresConstant
     #set progress to zer0
     progress = 0 
@@ -270,10 +245,13 @@ while GrowPatchLocation[0] + PatchSize < img_height:
         #if not progressed, increse threshold
         else:
             ThresholdConstant *= 1.1
+    pixelsCompleted += 1
     # print pixelsCompleted, ThresholdConstant
     sys.stdout.write('\r')
     sys.stdout.write("Progress : [%-20s] %d%% | PixelsCompleted: %d | ThresholdConstant: %f" % ('='*(int)(pixelsCompleted*20/TotalPatches), (100*pixelsCompleted)/TotalPatches, pixelsCompleted, ThresholdConstant))
     sys.stdout.flush()
+
+img=img[0:user_desired_img_height,0:user_desired_img_width]
     
 # Displaying Images
 cv2.imshow('Sample Texture',img_sample)

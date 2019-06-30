@@ -4,6 +4,7 @@ import cv2
 import sys
 import numpy as np
 from random import randint
+import os
 
 #---------------------------------------------------------------------------------------#
 #|                      Best Fit Patch and related functions                           |#
@@ -261,7 +262,8 @@ def drawDumpImg(imgTarget, imgSample, GrowPatchLocation, bestMatchesList, bestMa
     print(dumpImg[top:top+sampleH, left:left+sampleW].shape)
     dumpImg[top:top+sampleH, left:left+sampleW]=imgSampleClone
 
-    cv2.imwrite("./dumpImg%03d.jpg"%dumpID, dumpImg)
+    os.makedirs("./dump", exist_ok=True)
+    cv2.imwrite("./dump/dumpImg%03d.jpg"%dumpID, dumpImg)
 
 def synthesis(imgSample, patchSize, OverlapWidth, InitialThresConstant):
     img_height = int((user_desired_img_height // patchSize)*patchSize+patchSize)

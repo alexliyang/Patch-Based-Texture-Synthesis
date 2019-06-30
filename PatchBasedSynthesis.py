@@ -5,6 +5,10 @@ import sys
 import numpy as np
 from random import randint
 import os
+#for gif making
+import imageio 
+from PIL import Image
+from math import floor
 
 #---------------------------------------------------------------------------------------#
 #|                      Best Fit Patch and related functions                           |#
@@ -202,6 +206,25 @@ def FillImage( imgTarget, imgSample, imgPx, samplePx ):
 
 
 NEED_DUMP = True
+def makeGif(dumpPath, outputPath, frame_every_X_steps = 15, repeat_ending = 15):
+    number_files = len(os.listdir(dumpPath))-2
+    frame_every_X_steps = frame_every_X_steps
+    repeat_ending = repeat_ending
+    steps = np.arange(floor(number_files/frame_every_X_steps)) * frame_every_X_steps
+    steps = steps + (number_files - np.max(steps))
+
+    images = []
+    for f in steps:
+        filename = dumpPath + 'dumpImg%03d.jpg'%f
+        images.append(imageio.imread(filename))
+
+    #repeat ending
+    for _ in range(repeat_ending):
+        filename = dumpPath + 'dumpImg%03d.jpg'%number_files
+        images.append(imageio.imread(filename))  
+        
+    imageio.mimsave(outputPath, images)
+
 def drawDumpImg(imgTarget, imgSample, GrowPatchLocation, bestMatchesList, bestMatch, patchSize, OverlapWidth, dumpID):
     if NEED_DUMP==False:
         return
@@ -335,6 +358,7 @@ user_desired_img_height = 250
 user_desired_img_width = 250
 
 img = synthesis(imgSample, patchSize, OverlapWidth, InitialThresConstant)
+makeGif("./dump/", "./dump/dump.gif", 1)
 
 # Displaying Images
 cv2.imshow('Sample Texture',imgSample)

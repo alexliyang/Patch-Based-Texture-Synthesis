@@ -301,6 +301,7 @@ def drawDumpImg(imgTarget, imgSample, GrowPatchLocation, bestMatchesList, bestMa
     top = (dumpH - targetH)//2
     left= (dumpW//2 - targetW)//2
     dumpImg[top:top+targetH, left:left+targetW]=imgTargetClone
+    
     top = (dumpH - sampleH)//2
     left=dumpW//2 + (dumpW//2-sampleW)//2
     print(top, left, sampleW)
